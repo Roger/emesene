@@ -527,10 +527,6 @@ class Worker(e3.Worker):
     def _on_online_change(self, message):
         '''handle the status change of a contact that comes from offline'''
 
-        print '[!PARAMS]:', message.params
-
-        '''['1:roger@rogerpc.com.ar', 'roger@rogerpc.com.ar', '1342472230:2147615744', '0\r\n']'''
-
         status_ = STATUS_MAP_REVERSE[message.tid]
         (netid, account) = message.params[0].lower().split(':')
         nick = message.params[1]
