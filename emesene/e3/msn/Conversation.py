@@ -312,12 +312,14 @@ class Conversation(threading.Thread):
 
     def answer(self):
         '''answer a request from the server'''
-        self.socket.send_command('ANS', (self.session.account.account,
+        self.socket.send_command('ANS', ('%s;%s' % (
+            self.session.account.account, self.session.config.guid),
             self.auth_id, self.session_id))
 
     def send_presentation(self):
         '''send a presentation of ourselves'''
-        self.socket.send_command('USR', (self.session.account.account,
+        self.socket.send_command('USR', ('%s;%s' % (
+            self.session.account.account, self.session.config.guid),
             self.session_id))
 
     def send_message(self, message):

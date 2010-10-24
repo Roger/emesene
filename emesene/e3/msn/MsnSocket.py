@@ -36,17 +36,20 @@ class MsnSocket(Socket.Socket):
                 self.send('%s %d\r\n' % (command, self.tid))
 
         self.tid += 1
-    
+
     def _receive(self):
         '''receive data from the socket'''
         data = self._readline()
         # if we got something add it to the output queue
         if data:
             command = Command.Command.parse(data)
+            # TODO: check empty command
+            if not command:
+                return True
 
             if command.command in common.PAYLOAD_CMDS:
                 position = common.PAYLOAD_POSITION[command.command]
-                
+
                 try:
                     if position == -1:
                         size = int(command.tid)
@@ -54,6 +57,9 @@ class MsnSocket(Socket.Socket):
                         size = int(command.params[position])
                     command.payload = self.receive_fixed_size(size)
                 except ValueError:
+                    # For commands such as ADL and RML
+                    pass
+                except IndexError:
                     # For commands such as ADL and RML
                     pass
 

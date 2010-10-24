@@ -1,7 +1,7 @@
 import xml.sax.saxutils
 
-MSNP_VER = 'MSNP15'
-BUILD_VER = '8.0.0792'
+MSNP_VER = 'MSNP18'
+BUILD_VER = '14.0.8089.0726'
 
 PAYLOAD_CMDS = ['GCF', 'MSG', 'UBX', 'NOT', 'ADL', 'RML']
 # the position on params where the number of bytes to read is located

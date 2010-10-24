@@ -1,6 +1,7 @@
 '''a thread that handles the connection with the main server'''
 
 import time
+import uuid
 import Queue
 import urllib
 import httplib
@@ -66,6 +67,9 @@ class Worker(e3.Worker):
         else:
             self.proxy = proxy
         self.use_http = use_http
+
+        if session.config.guid is None:
+            session.config.guid = str(uuid.uuid1())
 
         self.socket = self._get_socket()
         self.in_login = False
@@ -352,7 +356,8 @@ class Worker(e3.Worker):
     def _on_version(self, message):
         '''handle version'''
         self.socket.send_command('CVR',
-            ('0x0c0a', 'winnt', '5.1', 'i386', 'MSNMSGR', '8.1.0178',
+            ('0x0c0a', 'winnt', '5.1', 'i386', 'MSNMSGR', common.BUILD_VER,
+
             'msmsgs', self.session.account.account))
 
     def _on_client_version(self, message):
@@ -374,7 +379,7 @@ class Worker(e3.Worker):
 
             self.socket = self._get_socket(host, int(port))
             self.socket.start()
-            self.socket.send_command('VER', ('MSNP15', 'CVR0'))
+            self.socket.send_command('VER', (common.MSNP_VER, 'CVR0'))
         else:
             self.session.add_event(e3.Event.EVENT_LOGIN_FAILED,
                 'invalid XFR command')
@@ -407,8 +412,13 @@ class Worker(e3.Worker):
                 self._on_login_failed()
 
             # we introduce ourselves again
-            self.socket.send_command('USR', ('SSO', 'S', \
-                passport_id, self.session.extras['mbiblob']))
+            if common.MSNP_VER == 'MSNP18':
+                self.socket.send_command('USR', ('SSO', 'S', \
+                    passport_id, self.session.extras['mbiblob'],
+                    self.session.config.guid))
+            else:
+                self.socket.send_command('USR', ('SSO', 'S', \
+                    passport_id, self.session.extras['mbiblob']))
         elif message.param_num_is(0, 'OK'):
             pass
 
@@ -516,9 +526,14 @@ class Worker(e3.Worker):
 
     def _on_online_change(self, message):
         '''handle the status change of a contact that comes from offline'''
+
+        print '[!PARAMS]:', message.params
+
+        '''['1:roger@rogerpc.com.ar', 'roger@rogerpc.com.ar', '1342472230:2147615744', '0\r\n']'''
+
         status_ = STATUS_MAP_REVERSE[message.tid]
-        account = message.params[0].lower()
-        nick = message.params[2]
+        (netid, account) = message.params[0].lower().split(':')
+        nick = message.params[1]
         params_length = len(message.params)
 
         nick = urllib.unquote(nick)
@@ -536,7 +551,7 @@ class Worker(e3.Worker):
 
         if params_length == 4:
             msnobj = urllib.unquote(message.params[3])
-            contact.attrs['CID'] = int(message.params[2])
+            contact.attrs['CID'] = int(message.params[2].split(':')[0])
 
         log_account = e3.Logger.Account.from_contact(contact)
 
@@ -723,7 +738,7 @@ class Worker(e3.Worker):
         self.socket = self._get_socket()
         self.socket.start()
 
-        self.socket.send_command('VER', ('MSNP15', 'CVR0'))
+        self.socket.send_command('VER', (common.MSNP_VER, 'CVR0'))
         self.session.add_event(e3.Event.EVENT_LOGIN_STARTED)
         self.in_login = True
         self.start_time = time.time()
@@ -802,7 +817,9 @@ class Worker(e3.Worker):
             common.escape(message) + '</PSM><CurrentMedia></CurrentMedia>' + \
             '<MachineGuid></MachineGuid></Data>')
         e3.base.Worker._handle_action_set_message(self, message)
-        Requester.SetProfile(self.session, contact.nick, message).start()
+        # TODO: nick
+        Requester.SetProfile(self.session, self.session.account.account,
+                message).start()
 
     def _handle_action_set_media(self, message):
         '''handle Action.ACTION_SET_MEDIA

@@ -19,12 +19,18 @@ class Command(object):
     @classmethod
     def parse(cls, cmd):
         '''parse a command and return a Command object'''
+        # TODO
+        # ValueError: need more than 1 value to unpack
         (tokens, payload) = cmd.split('\r\n')
         tokens = cmd.split(' ')
         params = None
 
         if not payload:
             payload = None
+
+        # TODO: Check this
+        if len(tokens) < 2:
+            return None
 
         (command, tid) = tokens[:2]
         if len(tokens) > 2:
@@ -59,7 +65,7 @@ class Command(object):
             return False
 
         return True
-            
+
     def __str__(self):
         '''return the string representation of the object'''
         return self.command + ' ' + self.tid + ' ' + ' '.join(self.params)
