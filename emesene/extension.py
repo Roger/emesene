@@ -176,16 +176,17 @@ class Category(object):
         # class: id
         self.ids = {}
 
-        if interfaces is not None:
-            self.set_interface(interfaces)
-
         self.is_single = single_instance
         self.multi_extension = False
-        self.instance = None #a weakref to the saved (single)instance
+        self.instances = weakref.WeakValueDictionary()
 
         self.default_id = None
         self.active = set() #list of ids of active extensions
         self.default = system_default
+
+        if interfaces is not None:
+            self.set_interface(interfaces)
+
 
     #Methods about the extensions
     def register(self, cls):
@@ -236,9 +237,9 @@ class Category(object):
     def _set_default(self, cls):
         '''register the default extension for this category, if it's not
         registered then register it and set it as default'''
+
         if cls is None:
             self.default_id = None
-            self.instance = None
             return
         if cls not in self.ids:
             self.register(cls)
@@ -246,7 +247,8 @@ class Category(object):
         _id = _get_class_name(cls)
         if self.default_id != _id:
             self.default_id = _id
-            self.instance = None
+            if _id in self.instances:
+                self.instances[_id] = None
 
     def _get_default(self):
         '''return the default extension for this category'''
@@ -265,33 +267,63 @@ class Category(object):
         '''
         If the category is a "single instance" one, and we have an instance,
         return it.
+        If is "multi extension" return a list of instances
         Otherwise None
         '''
-        if self.instance:
-            return self.instance() #it could even be None (it's a weakref!)
-        return None
+        if not self.multi_extension:
+            if self.instances:
+                #it could even be None (it's a weakref!)
+                return self.instances.values()[0]
+            return None
+
+        return [ext for _id, ext in self.instances.iteritems() \
+                if _id in self.active]
 
     def get_and_instantiate(self, *args, **kwargs):
         '''
-        Get an instance of the default extension.
-        If this category is a "single interface" one, it will also save
-        a reference to that instance.
+        Get an instance of the default extension or a 
+        list of instances if is "multi extension".
+        If this category it will also save
+        a reference to that instances.
         If this method is called when a reference is already saved, it will
-        return that one, NOT a new one.
+        return that one or a list if multi, NOT a new one.
         '''
-        #check if we have a ref, and if is still valid
-        #(remember: it's a weakref!)
-        inst = self.get_instance()
-        if inst:
-            return inst
-        cls = self.default
-        if not cls:
-            return cls
-        inst = cls(*args, **kwargs)
-        if self.is_single:
-            self.instance = weakref.ref(inst)
-            return inst
-        return inst
+        instances = self.get_instance()
+
+        if not self.multi_extension:
+            #check if we have a ref, and if is still valid
+            #(remember: it's a weakref!)
+            if instances:
+                return instances
+
+            cls = self.default
+            if not cls:
+                return cls
+            inst = cls(*args, **kwargs)
+            _id = _get_class_name(cls)
+
+            self.instances[_id] = inst
+        else:
+            # get a list of de instances class names
+            _ids = [_get_class_name(type(inst)) for inst in instances]
+            for cls in self.get_active().values():
+                _id = _get_class_name(cls)
+                # Just make a new instance if is not instantiated
+                if _id in _ids:
+                    continue
+                inst = cls(*args, **kwargs)
+                self.instances[_id] = inst
+
+        return self.get_instance()
+
+    def delete_instancee(self, instance):
+        ''' 
+        Remove an instance from the
+        WeakValueDictionary instanes
+        '''
+        _id = _get_class_name(type(instance))
+        if _id in self.instances:
+            del(self.instances[_id])
 
     def set_default_by_name(self, name):
         '''set the default extension throught its name'''
@@ -420,9 +452,9 @@ def get_default(category_name):
 
 def get_instance(category_name):
     '''
-    If the category is a "single interface" one, and we have an instance,
-    return it.
-    Otherwise None
+    If the category is a "multiple" return a list of instances
+    else return one.
+    If no theres no instances, return None
     '''
     category = get_category(category_name)
 
@@ -434,11 +466,11 @@ def get_instance(category_name):
 
 def get_and_instantiate(category_name, *args, **kwargs):
     '''
-    Get an instance of the default extension.
-    If this category is a "single interface" one, it will also save
-    a reference to that instance.
+    Get an instance of the default extension if not multi.
+    If this category is a "multi extension" a list of instances, 
+    it will also save a reference the instances.
     If this method is called when a reference is already saved, it will
-    return that one, NOT a new one.
+    return that ones, NOT a new ones.
     '''
     category = get_category(category_name)
 
@@ -447,13 +479,13 @@ def get_and_instantiate(category_name, *args, **kwargs):
 
     return None
 
-def delete_instance(category_name):
+def delete_instance(category_name, instance):
     '''
-    Delete an instance of a "single interface" category.
+    Delete an instance of a category.
     '''
     category = get_category(category_name)
 
-    category.instance = None
+    category.delete_instance(instance)
 
 def set_default(category_name, cls):
     '''set the cls as default for the category category_name, if cls is not

@@ -159,8 +159,9 @@ class OptionsHandler(object):
         instance = extension.get_and_instantiate('preferences', self.session)
         if self.session is not instance.session:
             instance.remove_subscriptions()
-            extension.delete_instance('preferences')
-            instance = extension.get_and_instantiate('preferences', self.session)
+            extension.delete_instance('preferences', instance)
+            instance = extension.get_and_instantiate('preferences',
+                                                    self.session)
         instance.show()
         instance.present()
 
